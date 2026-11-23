@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """CPU-only unit tests for the math in ILVAD_repro.ipynb.
 
 The tests pull the functions straight out of the notebook source, so there is
@@ -91,6 +91,61 @@ try:
     check("fp16 matmul", True)
 except Exception as e:  # noqa: BLE001
     check("fp16 matmul", False, repr(e))
+
+# ---------------------------------------------------------------- patched forward
+# 用一个小号的假 attention 模块跑一遍补丁后的 forward，覆盖 4D / 2D 掩码两条路径。
+# 这一组测试就是为了拦住「把 head_dim 当成序列长度」这类形状错误。
+class _FakeRotary:
+    def __call__(self, x, position_ids=None):
+        b, h, s, d = x.shape
+        return torch.ones(b, s, d), torch.zeros(b, s, d)
+
+
+class _FakeAttn(torch.nn.Module):
+    def __init__(self, d=8, n_heads=2, n_kv=2):
+        super().__init__()
+        self.head_dim = d // n_heads
+        self.num_heads = n_heads
+        self.num_key_value_heads = n_kv
+        self.num_key_value_groups = n_heads // n_kv
+        self.scaling = self.head_dim ** -0.5
+        self.q_proj = torch.nn.Linear(d, d, bias=False)
+        self.k_proj = torch.nn.Linear(d, d, bias=False)
+        self.v_proj = torch.nn.Linear(d, d, bias=False)
+        self.o_proj = torch.nn.Linear(d, d, bias=False)
+        self.rotary_emb = _FakeRotary()
+
+
+P = load_functions(
+    {"_causal", "_reweight", "_make_forward"},
+    {
+        "_rope": lambda q, k, cos, sin: (q, k),
+        "repeat_kv": lambda x, n: x,
+        "F": torch.nn.functional,
+        "ILVAD": {"on": False, "score": None, "alpha": 0.0, "mode": "boost", "span": (0, 0)},
+    },
+)
+attn = _FakeAttn()
+fwd = P["_make_forward"](attn)
+x = torch.randn(1, 7, 8)
+pos = torch.arange(7)[None]
+mask4 = torch.triu(torch.full((7, 7), float("-inf")), diagonal=1)[None, None]
+
+out, aw, _ = fwd(attn, x, attention_mask=mask4, position_ids=pos)
+check("patch forward shape", tuple(out.shape) == (1, 7, 8), str(tuple(out.shape)))
+check("patch rows sum to 1", torch.allclose(aw.sum(-1), torch.ones(1, 2, 7), atol=1e-5))
+check("patch causal", float(aw[0, 0, 0, 3].detach()) == 0.0)
+
+out2, aw2, _ = fwd(attn, x, attention_mask=torch.ones(1, 7, dtype=torch.long), position_ids=pos)
+check("patch 2D mask", tuple(out2.shape) == (1, 7, 8)
+      and torch.allclose(aw2.sum(-1), torch.ones(1, 2, 7), atol=1e-5))
+
+_g = P["_make_forward"].__globals__
+_g["ILVAD"].update(on=True, score=torch.ones(3), alpha=2.0, mode="boost", span=(0, 3))
+out3, aw3, _ = fwd(attn, x, attention_mask=mask4, position_ids=pos)
+check("patch boost path", tuple(out3.shape) == (1, 7, 8)
+      and torch.allclose(aw3.sum(-1), torch.ones(1, 2, 7), atol=1e-5))
+_g["ILVAD"]["on"] = False
 
 # ---------------------------------------------------------------- next-token shape
 # probe_attention / generate 里 ids 是 [1, S]，argmax 必须保留 batch 维成 [1, 1]，
