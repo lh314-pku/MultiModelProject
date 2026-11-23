@@ -1,4 +1,4 @@
-# MultiModelProject
+﻿# MultiModelProject
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lh314-pku/MultiModelProject/blob/main/ILVAD_repro.ipynb)
 
@@ -41,6 +41,7 @@ Stage 2  式(7)—(10)：视觉侧 A·exp(αŜ)，文本侧 A·(ŵ+β)，逐行�
          （补丁式替换 attention forward，附带「关掉干预应与原模型一致」的等价性自检）
 评测     yes/no 冒烟测试、AOPC（证据图是否 faithful）
 拓展 B   用 (第 k 层隐状态, Ŝ) 训练两层 MLP，推理时不再物化注意力
+扩展     τ 扫描 / POPE 真图对照 / 探针跨图验证（第 10 节）
 ```
 
 ## 状态
