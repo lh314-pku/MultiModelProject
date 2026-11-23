@@ -1,5 +1,7 @@
 # MultiModelProject
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lh314-pku/MultiModelProject/blob/main/ILVAD_repro.ipynb)
+
 LVLM 幻觉缓解方法 **ILVAD**（*Finding the Correct Visual Evidence Without Forgetting*，ICML 2026，arXiv:2605.20965）的复现工程，外加一个拓展：**把「证据显著图」从注意力里蒸成轻量探针**（下称方向 B）。
 
 仓库里同时放了配套的三份中文分析报告（`reports/`），从方法脉络讲到复现预算，再到下一步能改哪里。
