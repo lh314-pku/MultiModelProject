@@ -92,6 +92,15 @@ try:
 except Exception as e:  # noqa: BLE001
     check("fp16 matmul", False, repr(e))
 
+# ---------------------------------------------------------------- next-token shape
+# probe_attention / generate 里 ids 是 [1, S]，argmax 必须保留 batch 维成 [1, 1]，
+# 否则 torch.cat 会报 "got 2 and 1"。
+ids = torch.zeros(1, 5, dtype=torch.long)
+logits = torch.randn(1, 5, 10)
+nxt = logits[:, -1, :].argmax(dim=-1, keepdim=True)
+check("next token shape", tuple(nxt.shape) == (1, 1), str(tuple(nxt.shape)))
+check("cat shape", tuple(torch.cat([ids, nxt], dim=-1).shape) == (1, 6))
+
 # ---------------------------------------------------------------- visual span
 # LLaVA 的 processor 可能把 <image> 展开成 576 个占位符，也可能只留 1 个。
 # 两种情况都必须定位到同一段 [1, 577)。
