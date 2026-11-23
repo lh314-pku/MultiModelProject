@@ -1,0 +1,8 @@
+# 与论文官方仓库一致的 transformers 版本
+torch>=2.1
+transformers==4.45.0
+accelerate>=0.26
+bitsandbytes>=0.43
+datasets>=2.19
+matplotlib>=3.7
+pillow>=10.0
