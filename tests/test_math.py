@@ -19,7 +19,7 @@ import torch
 NB = Path(__file__).resolve().parents[1] / "ILVAD_repro.ipynb"
 
 
-def load_functions(names):
+def load_functions(names, extra=None):
     nb = json.loads(NB.read_text(encoding="utf-8"))
     srcs = ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
     found = {}
@@ -31,6 +31,7 @@ def load_functions(names):
         keep = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
         if keep:
             ns = {"torch": torch, "math": math}
+            ns.update(extra or {})
             exec(compile(ast.Module(body=keep, type_ignores=[]), "<nb>", "exec"), ns)
             for n in keep:
                 found[n.name] = ns[n.name]
@@ -41,6 +42,9 @@ def load_functions(names):
 
 F = load_functions({"_causal", "_reweight", "build_map"})
 _causal, _reweight, build_map = F["_causal"], F["_reweight"], F["build_map"]
+
+V = load_functions({"visual_span"}, {"IMG_TOK": 32000, "N_VIS": 576})
+visual_span = V["visual_span"]
 
 failures = []
 
@@ -87,6 +91,15 @@ try:
     check("fp16 matmul", True)
 except Exception as e:  # noqa: BLE001
     check("fp16 matmul", False, repr(e))
+
+# ---------------------------------------------------------------- visual span
+# LLaVA 的 processor 可能把 <image> 展开成 576 个占位符，也可能只留 1 个。
+# 两种情况都必须定位到同一段 [1, 577)。
+single = torch.tensor([[1, 32000, 5, 6]])
+check("visual_span single placeholder", visual_span(single) == (1, 577), str(visual_span(single)))
+
+expanded = torch.tensor([[1] + [32000] * 576 + [5]])
+check("visual_span pre-expanded", visual_span(expanded) == (1, 577), str(visual_span(expanded)))
 
 # ---------------------------------------------------------------- build_map
 class Cfg:
