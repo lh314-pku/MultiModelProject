@@ -40,7 +40,8 @@ def load_functions(names, extra=None):
     return found
 
 
-F = load_functions({"_causal", "_reweight", "build_map"})
+F = load_functions({"_causal", "_reweight", "build_map"},
+                   {"ILVAD": {"row": -1}})
 _causal, _reweight, build_map = F["_causal"], F["_reweight"], F["build_map"]
 
 V = load_functions({"visual_span"}, {"IMG_TOK": 32000, "N_VIS": 576})
@@ -71,13 +72,13 @@ check("rows sum to 1", torch.allclose(out.sum(-1), torch.ones(2, 4), atol=1e-5))
 
 score = torch.tensor([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 boosted = _reweight(aw, (3, 9), score, 2.0, "boost")
-before, after = aw[..., 3:9].sum(-1), boosted[..., 3:9].sum(-1)
+before, after = aw[..., -1, 3:9].sum(-1), boosted[..., -1, 3:9].sum(-1)
 check("boost raises visual mass", bool((after > before).all()),
       f"{float(before.mean()):.3f} -> {float(after.mean()):.3f}")
 
 mask = torch.tensor([0.0, 1.0, 0.0, 0.0, 0.0, 0.0])
 masked = _reweight(aw, (3, 9), mask, 0.0, "mask")
-check("mask zeroes the token", float(masked[..., 4].abs().max()) < 1e-6)
+check("mask zeroes the token", float(masked[..., -1, 4].abs().max()) < 1e-6)
 check("mask rows sum to 1", torch.allclose(masked.sum(-1), torch.ones(2, 4), atol=1e-5))
 
 # mixed precision: fp16 rows + fp32 score must stay fp16 (else matmul with V fails)
